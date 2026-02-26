@@ -1,0 +1,60 @@
+<vbox onload="Zotero.Clavicularius.onPrefLoad(event)">
+
+  <groupbox>
+    <label><html:h2>Citation Key Template</html:h2></label>
+
+    <description>
+      Available tokens: {auth} (lowercase), {Auth} (capitalized),
+      {year}, {title} (CamelCase), {title_lower} (underscore_separated)
+    </description>
+
+    <html:div style="margin-top: 8px;">
+      <html:label for="citekey-template" style="display:block; margin-bottom: 4px;">
+        Template
+      </html:label>
+      <html:input
+        id="citekey-template"
+        type="text"
+        preference="extensions.zotero.extensions.clavicularius.template"
+        style="width: 100%;"
+      />
+    </html:div>
+
+    <html:div style="margin-top: 8px;">
+      <html:label for="citekey-title-words" style="display:block; margin-bottom: 4px;">
+        Number of title words
+      </html:label>
+      <html:input
+        id="citekey-title-words"
+        type="number"
+        min="1"
+        max="10"
+        preference="extensions.zotero.extensions.clavicularius.titleWords"
+        style="width: 80px;"
+      />
+    </html:div>
+
+    <html:div style="margin-top: 12px;">
+      <html:label style="display:block; margin-bottom: 4px; color: #666;">
+        Preview (based on selected item)
+      </html:label>
+      <html:code id="citekey-preview" style="font-size: 1.1em;">—</html:code>
+    </html:div>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2>Bulk Actions</html:h2></label>
+
+    <description>
+      Backfill generates keys only for items that don't have one yet.
+      Rebuild overwrites all existing keys.
+    </description>
+
+    <html:div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">
+      <html:button id="citekey-backfill">Backfill missing keys</html:button>
+      <html:button id="citekey-rebuild">Rebuild all keys</html:button>
+      <html:span id="citekey-status" style="color: #666; font-style: italic;"></html:span>
+    </html:div>
+  </groupbox>
+
+</vbox>

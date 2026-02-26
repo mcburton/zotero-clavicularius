@@ -1,0 +1,14 @@
+{
+  "manifest_version": 2,
+  "name": "Zotero Clavicularius",
+  "version": "0.1.0",
+  "description": "Generates and manages citation keys (clavis citationum) for Zotero items",
+  "applications": {
+    "zotero": {
+      "id": "clavicularius@mcburton.net",
+      "update_url": "https://github.com/mcburton/zotero-clavicularius/releases/latest/download/updates.json",
+      "strict_min_version": "8.0",
+      "strict_max_version": "*"
+    }
+  }
+}
