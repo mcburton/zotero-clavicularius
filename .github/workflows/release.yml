@@ -1,0 +1,67 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update manifest version
+        run: |
+          sed -i 's/"version": ".*"/"version": "${{ steps.get_version.outputs.VERSION }}"/' manifest.json
+
+      - name: Build XPI
+        run: |
+          zip -j zotero-clavicularius.xpi manifest.json bootstrap.js prefs.xhtml
+          zip zotero-clavicularius.xpi defaults/preferences/prefs.js
+
+      - name: Generate updates.json
+        run: |
+          cat > updates.json << EOF
+          {
+            "addons": {
+              "clavicularius@mcburton.net": {
+                "updates": [
+                  {
+                    "version": "${{ steps.get_version.outputs.VERSION }}",
+                    "update_link": "https://github.com/mcburton/zotero-clavicularius/releases/download/v${{ steps.get_version.outputs.VERSION }}/zotero-clavicularius.xpi",
+                    "applications": {
+                      "zotero": {
+                        "strict_min_version": "8.0",
+                        "strict_max_version": "*"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            zotero-clavicularius.xpi
+            updates.json
+          body: |
+            Release version ${{ steps.get_version.outputs.VERSION }}
+
+            ## Installation
+            Download `zotero-clavicularius.xpi` and install via Zotero → Tools → Add-ons → Install Add-on From File
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
