@@ -26,7 +26,7 @@ jobs:
 
       - name: Build XPI
         run: |
-          zip -j zotero-clavicularius.xpi manifest.json bootstrap.js prefs.xhtml
+          zip -j zotero-clavicularius.xpi manifest.json bootstrap.js prefs.xhtml pandoc-citekey.js
           zip zotero-clavicularius.xpi defaults/preferences/prefs.js
 
       - name: Generate updates.json

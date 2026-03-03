@@ -127,38 +127,19 @@ function registerNotifier() {
 
 // --- Pandoc quick copy translator ---
 
-function registerPandocTranslator() {
-  const metadata = {
-    translatorID: PANDOC_TRANSLATOR_ID,
-    label: 'Clavicularius: Pandoc Citation Key',
-    creator: 'Zotero Clavicularius',
-    target: '',
-    minVersion: '8.0',
-    maxVersion: '',
-    priority: 100,
-    translatorType: 2, // export
-    browserSupport: 'gcsibv',
-    lastUpdated: '2026-03-03 00:00:00',
-    displayOptions: { exportFileData: false },
-  };
-
-  const code = `
-function doExport() {
-  var item;
-  var keys = [];
-  while ((item = Zotero.nextItem())) {
-    var key = item.citationKey;
-    if (key) keys.push('@' + key);
-  }
-  Zotero.write(keys.join('; '));
-}
-`;
-
-  Zotero.Translators.save(metadata, code);
+async function registerPandocTranslator(rootURI) {
+  // Read the bundled translator file (works with both jar: and file: URIs)
+  const response = await fetch(rootURI + 'pandoc-citekey.js');
+  const text = await response.text();
+  const destPath = PathUtils.join(Zotero.getTranslatorsDirectory().path, 'pandoc-citekey.js');
+  await IOUtils.writeUTF8(destPath, text);
+  await Zotero.Translators.reinit();
 }
 
-function unregisterPandocTranslator() {
-  Zotero.Translators.remove(PANDOC_TRANSLATOR_ID);
+async function unregisterPandocTranslator() {
+  const destPath = PathUtils.join(Zotero.getTranslatorsDirectory().path, 'pandoc-citekey.js');
+  await IOUtils.remove(destPath, { ignoreAbsent: true });
+  await Zotero.Translators.reinit();
 }
 
 // --- Lifecycle ---
@@ -175,7 +156,7 @@ async function startup({ id, version, rootURI }) {
   }
 
   registerNotifier();
-  registerPandocTranslator();
+  await registerPandocTranslator(rootURI);
 
   // Register preferences pane
   Zotero.PreferencePanes.register({
@@ -267,9 +248,9 @@ async function startup({ id, version, rootURI }) {
   };
 }
 
-function shutdown() {
+async function shutdown() {
   Zotero.Notifier.unregisterObserver(notifierID);
-  unregisterPandocTranslator();
+  await unregisterPandocTranslator();
   delete Zotero.Clavicularius;
 }
 

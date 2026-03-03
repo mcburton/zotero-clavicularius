@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zotero Clavicularius",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Generates and manages citation keys (clavis citationum) for Zotero items",
   "applications": {
     "zotero": {
