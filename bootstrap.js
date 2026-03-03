@@ -14,6 +14,9 @@ const PLUGIN_ID = 'clavicularius@mcburton.net';
 const PREF_TEMPLATE = 'extensions.clavicularius.template';
 const PREF_TITLE_WORDS = 'extensions.clavicularius.titleWords';
 
+// Translator GUID - stable identifier for the pandoc cite key quick copy format
+const PANDOC_TRANSLATOR_ID = 'a7f2e3b1-4c8d-4e9f-b123-5d6e7f8a9b0c';
+
 const DEFAULT_TEMPLATE = '{auth}{year}';
 const DEFAULT_TITLE_WORDS = 3;
 
@@ -122,6 +125,42 @@ function registerNotifier() {
   );
 }
 
+// --- Pandoc quick copy translator ---
+
+function registerPandocTranslator() {
+  const metadata = {
+    translatorID: PANDOC_TRANSLATOR_ID,
+    label: 'Clavicularius: Pandoc Citation Key',
+    creator: 'Zotero Clavicularius',
+    target: '',
+    minVersion: '8.0',
+    maxVersion: '',
+    priority: 100,
+    translatorType: 2, // export
+    browserSupport: 'gcsibv',
+    lastUpdated: '2026-03-03 00:00:00',
+    displayOptions: { exportFileData: false },
+  };
+
+  const code = `
+function doExport() {
+  var item;
+  var keys = [];
+  while ((item = Zotero.nextItem())) {
+    var key = item.citationKey;
+    if (key) keys.push('@' + key);
+  }
+  Zotero.write(keys.join('; '));
+}
+`;
+
+  Zotero.Translators.save(metadata, code);
+}
+
+function unregisterPandocTranslator() {
+  Zotero.Translators.remove(PANDOC_TRANSLATOR_ID);
+}
+
 // --- Lifecycle ---
 
 async function startup({ id, version, rootURI }) {
@@ -136,6 +175,7 @@ async function startup({ id, version, rootURI }) {
   }
 
   registerNotifier();
+  registerPandocTranslator();
 
   // Register preferences pane
   Zotero.PreferencePanes.register({
@@ -229,6 +269,7 @@ async function startup({ id, version, rootURI }) {
 
 function shutdown() {
   Zotero.Notifier.unregisterObserver(notifierID);
+  unregisterPandocTranslator();
   delete Zotero.Clavicularius;
 }
 
