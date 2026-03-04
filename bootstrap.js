@@ -194,6 +194,78 @@ function registerNotifier() {
   );
 }
 
+// --- Context menu: Regenerate citation key ---
+
+var menuObservers = [];
+
+function registerContextMenu() {
+  // Zotero may have multiple windows; register in each one that exists now
+  // and in any that open later via the windowMediator observer.
+  for (const win of Zotero.getMainWindows()) {
+    addMenuItemToWindow(win);
+  }
+
+  const observer = {
+    observe(subject) {
+      addMenuItemToWindow(subject);
+    }
+  };
+  Services.wm.addListener(observer);
+  menuObservers.push(observer);
+}
+
+function addMenuItemToWindow(win) {
+  const doc = win.document;
+  if (!doc || doc.getElementById('clavicularius-regen-key')) return;
+
+  const menuitem = doc.createXULElement('menuitem');
+  menuitem.id = 'clavicularius-regen-key';
+  menuitem.setAttribute('label', 'Regenerate citation key');
+  menuitem.addEventListener('command', async () => {
+    const items = Zotero.getActiveZoteroPane()
+      ?.getSelectedItems()
+      ?.filter(i => i.isRegularItem());
+    if (!items?.length) return;
+
+    // Build a used-keys set that excludes all selected items so they can
+    // freely take each other's base keys (ordered by dateAdded).
+    const selectedIDs = new Set(items.map(i => i.id));
+    const usedKeys = new Set();
+    const libraryID = Zotero.Libraries.userLibraryID;
+    const allItems = Zotero.Items.getAll(libraryID, true, false, true);
+    for (const item of allItems) {
+      if (!item.isRegularItem()) continue;
+      if (selectedIDs.has(item.id)) continue;
+      const key = item.getField('citationKey');
+      if (key) usedKeys.add(key);
+    }
+
+    // Process selected items sorted by dateAdded so earlier items win bare keys
+    const sorted = [...items].sort((a, b) => {
+      const da = a.getField('dateAdded') || '';
+      const db = b.getField('dateAdded') || '';
+      return da < db ? -1 : da > db ? 1 : a.id - b.id;
+    });
+    for (const item of sorted) {
+      await processItem(item, true, usedKeys);
+    }
+  });
+
+  const itemmenu = doc.getElementById('zotero-itemmenu');
+  if (itemmenu) itemmenu.appendChild(menuitem);
+}
+
+function unregisterContextMenu() {
+  for (const observer of menuObservers) {
+    Services.wm.removeListener(observer);
+  }
+  menuObservers = [];
+
+  for (const win of Zotero.getMainWindows()) {
+    win.document.getElementById('clavicularius-regen-key')?.remove();
+  }
+}
+
 // --- Pandoc quick copy translator ---
 
 async function registerPandocTranslator(rootURI) {
@@ -225,6 +297,7 @@ async function startup({ id, version, rootURI }) {
   }
 
   registerNotifier();
+  registerContextMenu();
   await registerPandocTranslator(rootURI);
 
   // Register preferences pane
@@ -319,6 +392,7 @@ async function startup({ id, version, rootURI }) {
 
 async function shutdown() {
   Zotero.Notifier.unregisterObserver(notifierID);
+  unregisterContextMenu();
   await unregisterPandocTranslator();
   delete Zotero.Clavicularius;
 }
