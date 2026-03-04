@@ -79,17 +79,60 @@ function generateKey(item) {
     .replace(/{title_lower}/g, getTitleWords(item, n, 'lower'));
 }
 
+// --- Duplicate key resolution ---
+
+// Returns a Set of all citation keys currently in the user library,
+// optionally skipping the item with `excludeItemID`.
+// Uses the synchronous overload of Zotero.Items.getAll (passing `true` as
+// the last argument returns cached objects without awaiting a DB query).
+function collectUsedKeys(excludeItemID = null) {
+  const libraryID = Zotero.Libraries.userLibraryID;
+  const usedKeys = new Set();
+  const allItems = Zotero.Items.getAll(libraryID, true, false, true);
+  for (const item of allItems) {
+    if (!item.isRegularItem()) continue;
+    if (excludeItemID !== null && item.id === excludeItemID) continue;
+    const key = item.getField('citationKey');
+    if (key) usedKeys.add(key);
+  }
+  return usedKeys;
+}
+
+// Given a base key and a Set of already-taken keys, returns the first
+// available variant: baseKey, baseKey+'a', baseKey+'b', …
+function disambiguateKey(baseKey, usedKeys) {
+  if (!usedKeys.has(baseKey)) return baseKey;
+  const letters = 'abcdefghijklmnopqrstuvwxyz';
+  for (const letter of letters) {
+    const candidate = baseKey + letter;
+    if (!usedKeys.has(candidate)) return candidate;
+  }
+  // Extremely unlikely fallback: append numeric suffix
+  let i = 2;
+  while (usedKeys.has(baseKey + i)) i++;
+  return baseKey + i;
+}
+
 // --- Item processing ---
 
-async function processItem(item, overwrite = false) {
+// `usedKeys` is a Set of citation keys already committed in this batch.
+// If omitted, it is built from the live library (excluding this item).
+async function processItem(item, overwrite = false, usedKeys = null) {
   if (!item.isRegularItem()) return false;
   if (!overwrite && item.getField('citationKey')) return false;
 
-  const key = generateKey(item);
-  if (!key) return false;
+  const baseKey = generateKey(item);
+  if (!baseKey) return false;
+
+  const keys = usedKeys ?? collectUsedKeys(item.id);
+  const key = disambiguateKey(baseKey, keys);
 
   item.setField('citationKey', key);
   await item.saveTx();
+
+  // Let the caller's usedKeys set know this key is now taken
+  if (usedKeys !== null) usedKeys.add(key);
+
   return true;
 }
 
@@ -97,10 +140,32 @@ async function processItem(item, overwrite = false) {
 
 async function backfill(overwrite = false) {
   const libraryID = Zotero.Libraries.userLibraryID;
-  const items = await Zotero.Items.getAll(libraryID);
+  const allItems = await Zotero.Items.getAll(libraryID);
+
+  // Sort regular items by dateAdded ascending so the earliest item wins the
+  // bare key and later items get the a/b/c suffix.
+  const items = allItems
+    .filter(i => i.isRegularItem())
+    .sort((a, b) => {
+      const da = a.getField('dateAdded') || '';
+      const db = b.getField('dateAdded') || '';
+      return da < db ? -1 : da > db ? 1 : a.id - b.id;
+    });
+
+  // When overwriting we rebuild all keys from scratch with a clean slate.
+  // When backfilling we seed the used-keys set with existing keys so we
+  // don't clobber them.
+  const usedKeys = new Set();
+  if (!overwrite) {
+    for (const item of items) {
+      const existing = item.getField('citationKey');
+      if (existing) usedKeys.add(existing);
+    }
+  }
+
   let count = 0;
   for (const item of items) {
-    const changed = await processItem(item, overwrite);
+    const changed = await processItem(item, overwrite, usedKeys);
     if (changed) count++;
   }
   return count;
@@ -117,7 +182,11 @@ function registerNotifier() {
         if (type !== 'item' || event !== 'add') return;
         for (const id of ids) {
           const item = Zotero.Items.get(id);
-          if (item) processItem(item, false);
+          if (!item) continue;
+          // Build the used-keys set once per batch, excluding the new items
+          // themselves so they don't block each other unnecessarily.
+          const usedKeys = collectUsedKeys(item.id);
+          processItem(item, false, usedKeys);
         }
       }
     },
