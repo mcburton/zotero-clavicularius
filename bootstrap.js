@@ -232,7 +232,7 @@ function addMenuItemToWindow(win) {
     const selectedIDs = new Set(items.map(i => i.id));
     const usedKeys = new Set();
     const libraryID = Zotero.Libraries.userLibraryID;
-    const allItems = await Zotero.Items.getAll(libraryID, true, false, true);
+    const allItems = await Zotero.Items.getAll(libraryID, true, false, false);
     for (const item of allItems) {
       if (!item.isRegularItem()) continue;
       if (selectedIDs.has(item.id)) continue;
